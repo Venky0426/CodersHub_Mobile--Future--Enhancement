@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+@theme {
+  --color-linkedin-blue: #0a66c2;
+  --color-linkedin-light: #ffffff;
+  --color-linkedin-dark: #000000;
+  --color-linkedin-gray: #666666;
+  --font-sans: "Inter", "system-ui", "Avenir", "Helvetica", "Arial", sans-serif;
+}
+
+body {
+  background-color: var(--color-linkedin-light);
+  color: var(--color-linkedin-dark);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
