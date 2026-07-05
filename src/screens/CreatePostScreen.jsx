@@ -119,7 +119,7 @@ const CreatePostScreen = ({ navigation }) => {
 
         {newPostImage ? (
           <View className="relative mt-2 mb-4">
-            <Image source={{ uri: newPostImage }} className="w-full h-48 rounded-lg" resizeMode="cover" />
+            <Image source={{ uri: newPostImage }} className="w-full h-64 rounded-lg bg-gray-50" resizeMode="contain" />
             <TouchableOpacity 
               className="absolute top-2 right-2 bg-black/50 p-1 rounded-full"
               onPress={() => setNewPostImage('')}

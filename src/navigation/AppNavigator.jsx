@@ -78,8 +78,8 @@ function TabNavigator({ navigation }) {
           let IconComponent;
           if (route.name === 'Feed') IconComponent = Home;
           else if (route.name === 'Projects') IconComponent = Briefcase;
-          else if (route.name === 'Workshops') IconComponent = GraduationCap;
           else if (route.name === 'Messages') IconComponent = MessageSquare;
+          else if (route.name === 'Profile') IconComponent = UserCheck;
 
           if (IconComponent) {
             return <IconComponent size={size} color={color} />;
@@ -131,8 +131,8 @@ function TabNavigator({ navigation }) {
         }}
       />
 
-      <Tab.Screen name="Workshops" component={WorkshopsScreen} />
       <Tab.Screen name="Messages" component={MessagesScreen} options={{ headerShown: false }} />
+      <Tab.Screen name="Profile" component={ProfileDashboardScreen} />
     </Tab.Navigator>
   );
 }

@@ -274,7 +274,7 @@ const FeedScreen = ({ navigation }) => {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12 }}>
             {[
               { id: 1, title: 'Startup Hub', subtitle: 'Build & Launch Startups', icon: Rocket, color: '#10b981', bg: '#d1fae5', screen: 'StartupHub' },
-              { id: 2, title: 'Workshops', subtitle: 'Learn & Grow Together', icon: GraduationCap, color: '#8b5cf6', bg: '#ede9fe', screen: 'Workshops' },
+              { id: 2, title: 'Workshops', subtitle: 'Learn & Grow Together', icon: GraduationCap, color: '#8b5cf6', bg: '#ede9fe' },
               { id: 3, title: 'Hackathons', subtitle: 'Compete & Win Prizes', icon: Trophy, color: '#f59e0b', bg: '#fef3c7' },
               { id: 4, title: 'Jobs', subtitle: 'Find Opportunities Near You', icon: Briefcase, color: '#3b82f6', bg: '#dbeafe' },
             ].map(item => (
@@ -298,13 +298,14 @@ const FeedScreen = ({ navigation }) => {
           <View className="p-8 items-center justify-center">
              <Text className="text-gray-500">No posts yet. Be the first to share!</Text>
           </View>
-        ) : posts.map((post) => {
+        ) : posts.map((post, index) => {
           const isLiked = auth.currentUser ? (post.likedBy || []).includes(auth.currentUser.uid) : false;
           const isCommentOpen = openComments[post.id];
           const postComments = post.comments || [];
           
           return (
-          <View key={post.id} className="bg-white mb-4 border-t border-b border-gray-200">
+          <React.Fragment key={post.id}>
+          <View className="bg-white mb-4 border-t border-b border-gray-200">
             <View className="p-4 flex-row justify-between items-start">
               <View className="flex-row">
                 <Image source={{ uri: post.avatar || 'https://randomuser.me/api/portraits/men/46.jpg' }} className="w-12 h-12 rounded-full mr-3 bg-gray-200" />
@@ -329,7 +330,7 @@ const FeedScreen = ({ navigation }) => {
             ) : null}
 
             {post.image ? (
-              <Image source={{ uri: post.image }} className="w-full h-64 bg-gray-100" resizeMode="cover" />
+              <Image source={{ uri: post.image }} className="w-full h-96 bg-gray-50" resizeMode="contain" />
             ) : null}
 
             <View className="px-4 py-2 border-b border-gray-100 flex-row justify-between items-center">
@@ -376,6 +377,29 @@ const FeedScreen = ({ navigation }) => {
               </View>
             )}
           </View>
+          
+          {index === 0 && (
+            <View className="mb-4 pt-2">
+              <Text className="text-[14px] font-bold text-gray-900 px-4 mb-3">Recommended Communities</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16 }}>
+                {[
+                  { name: 'AIML Community', members: '1.2K members', img: 'https://api.dicebear.com/7.x/shapes/png?seed=aiml' },
+                  { name: 'Web Dev Community', members: '2.5K members', img: 'https://api.dicebear.com/7.x/shapes/png?seed=web' },
+                  { name: 'UI/UX Community', members: '800 members', img: 'https://api.dicebear.com/7.x/shapes/png?seed=uiux' }
+                ].map((comm, idx) => (
+                  <View key={idx} className="bg-white border border-gray-200 rounded-xl p-3 mr-3 w-[140px] items-center shadow-sm">
+                    <Image source={{ uri: comm.img }} className="w-12 h-12 rounded-lg bg-gray-100 mb-2" />
+                    <Text className="text-gray-900 font-bold text-[13px] text-center mb-0.5" numberOfLines={1}>{comm.name}</Text>
+                    <Text className="text-gray-500 text-[11px] text-center mb-3">{comm.members}</Text>
+                    <TouchableOpacity className="bg-[#0a66c2] px-6 py-1.5 rounded-full w-full items-center">
+                      <Text className="text-white text-[11px] font-bold">Join</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+          </React.Fragment>
           );
         })}
         <View className="h-20" />

@@ -12,7 +12,7 @@ import ProfileDashboard from './pages/ProfileDashboard';
 import Workshops from './pages/Workshops';
 
 function App() {
-  return (
+  return ( 
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Login />} />

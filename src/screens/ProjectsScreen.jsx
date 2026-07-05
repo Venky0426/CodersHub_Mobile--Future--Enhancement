@@ -3,7 +3,7 @@ import {
   View, Text, TouchableOpacity, Image, ScrollView, TextInput, 
   Modal, ActivityIndicator, Alert, Linking, KeyboardAvoidingView, Platform
 } from 'react-native';
-import { Upload, Heart, MessageCircle, Share2, Download, UserPlus, Send, X, ChevronDown, Star } from 'lucide-react-native';
+import { Upload, Heart, MessageCircle, Share2, Download, UserPlus, Send, X, ChevronDown, Star, Search, Filter } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { auth, db } from '../firebase';
 import { collection, addDoc, getDocs, doc, updateDoc, query, orderBy, where } from 'firebase/firestore';
@@ -35,6 +35,8 @@ const ProjectsScreen = () => {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeSearchQuery, setActiveSearchQuery] = useState('');
   const [manualTitle, setManualTitle] = useState('');
   const [manualDesc, setManualDesc] = useState('');
   const [manualImage, setManualImage] = useState('');
@@ -47,6 +49,73 @@ const ProjectsScreen = () => {
   const [commentProject, setCommentProject] = useState(null);
   const [newCommentText, setNewCommentText] = useState('');
   const [postingComment, setPostingComment] = useState(false);
+
+  const calculateMatchScore = (project, query) => {
+    if (!query.trim()) return 0;
+    const keywords = query.toLowerCase().split(/\s+/).filter(k => k.length > 0);
+    if (keywords.length === 0) return 0;
+
+    let matchedKeywords = [];
+    keywords.forEach(kw => {
+      const inTitle = project.title && project.title.toLowerCase().includes(kw);
+      const inDesc = project.desc && project.desc.toLowerCase().includes(kw);
+      const inTech = project.tech && project.tech.some(t => t.toLowerCase().includes(kw));
+      if (inTitle || inDesc || inTech) {
+        matchedKeywords.push(kw);
+      }
+    });
+
+    if (matchedKeywords.length === 0) return 0;
+
+    const ratio = matchedKeywords.length / keywords.length;
+    let baseScore = 70 + (ratio * 15);
+
+    let titleBonus = 0;
+    let techBonus = 0;
+    let descBonus = 0;
+    
+    keywords.forEach(kw => {
+      if (project.title && project.title.toLowerCase().includes(kw)) titleBonus += 3;
+      if (project.tech && project.tech.some(t => t.toLowerCase().includes(kw))) techBonus += 2;
+      if (project.desc && project.desc.toLowerCase().includes(kw)) descBonus += 1;
+    });
+
+    return Math.min(Math.round(baseScore + titleBonus + techBonus + descBonus), 98);
+  };
+
+  const executeSearch = (queryText) => {
+    setSearchQuery(queryText);
+    setActiveSearchQuery(queryText.trim());
+  };
+
+  const getHighlightedText = (text, highlight) => {
+    if (!highlight.trim() || !text) return <Text>{text}</Text>;
+    const keywords = highlight.toLowerCase().split(/\s+/).filter(k => k.length > 0);
+    if (keywords.length === 0) return <Text>{text}</Text>;
+    const regex = new RegExp(`(${keywords.join('|')})`, 'gi');
+    const parts = text.split(regex);
+    return (
+      <Text>
+        {parts.map((part, i) => 
+          keywords.includes(part.toLowerCase()) ? (
+            <Text key={i} style={{ backgroundColor: '#fef3c7', fontWeight: '600', color: '#b45309' }}>
+              {part}
+            </Text>
+          ) : (
+            <Text key={i}>{part}</Text>
+          )
+        )}
+      </Text>
+    );
+  };
+
+  const searchKeywords = activeSearchQuery.trim().toLowerCase().split(/\s+/).filter(k => k.length > 0);
+  const searchResults = activeSearchQuery.trim()
+    ? projects
+        .map(p => ({ ...p, matchScore: calculateMatchScore(p, activeSearchQuery) }))
+        .filter(p => p.matchScore > 0)
+        .sort((a, b) => b.matchScore - a.matchScore)
+    : [];
 
   const fetchProjects = async () => {
     try {
@@ -267,9 +336,46 @@ const ProjectsScreen = () => {
 
   return (
     <View className="flex-1 bg-gray-50">
-      <ScrollView ref={scrollViewRef} contentContainerStyle={{ padding: 16 }}>
+      <ScrollView ref={scrollViewRef} contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
+        {/* Search Bar */}
+        <View className="mb-4">
+          <View className="flex-row items-center">
+            <View className="flex-1 flex-row items-center bg-white border border-gray-300 rounded-xl px-3 py-2 mr-2">
+              <Search size={20} color="#6b7280" />
+              <TextInput
+                className="flex-1 ml-2 text-sm text-gray-900"
+                placeholder="Search projects..."
+                placeholderTextColor="#9ca3af"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                onSubmitEditing={() => executeSearch(searchQuery)}
+                returnKeyType="search"
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => executeSearch('')}>
+                  <X size={16} color="#9ca3af" />
+                </TouchableOpacity>
+              )}
+            </View>
+            <TouchableOpacity 
+              className="bg-[#0a66c2] px-5 py-2.5 rounded-full items-center justify-center shadow-sm"
+              onPress={() => executeSearch(searchQuery)}
+            >
+              <Text className="text-white font-semibold text-sm">Search</Text>
+            </TouchableOpacity>
+          </View>
+          {activeSearchQuery ? (
+            <View className="flex-row items-center mt-3 ml-1">
+              <Text className="text-[#0a66c2] font-bold text-xs mr-1">💡 Tip:</Text>
+              <Text className="text-gray-500 text-xs">Use specific keywords to get more relevant projects</Text>
+            </View>
+          ) : null}
+        </View>
+
+        {!activeSearchQuery ? (
+          <>
         {/* Header */}
-        <View className="mb-6">
+        <View className="mb-6 mt-2">
           <View className="flex-row justify-between items-center mb-2">
             <View className="flex-1">
               <Text className="text-2xl font-bold text-gray-900">Build. Share.</Text>
@@ -342,88 +448,188 @@ const ProjectsScreen = () => {
             <Text className="text-[#0a66c2] text-sm">→</Text>
           </TouchableOpacity>
         </View>
+        </>
+        ) : (
+          <View className="mb-6">
+            <View className="flex-row justify-between items-center mb-3">
+              <View>
+                <Text className="text-lg font-bold text-gray-900">Search Result</Text>
+                <Text className="text-xs text-gray-500 mt-0.5">We found {searchResults.length} projects related to your search</Text>
+              </View>
+              <TouchableOpacity className="flex-row items-center bg-white border border-gray-300 px-3 py-1.5 rounded-lg shadow-sm">
+                <Filter size={14} color="#0a66c2" style={{ marginRight: 4 }} />
+                <Text className="text-gray-700 text-xs font-semibold">Filter</Text>
+              </TouchableOpacity>
+            </View>
 
-        {loading ? (
+            <View className="flex-row items-center flex-wrap mb-4">
+              <Text className="text-xs font-bold text-gray-700 mr-2">Highlighted Keywords:</Text>
+              {searchKeywords.map((kw, i) => (
+                <View key={i} className="bg-yellow-100 px-2.5 py-1 rounded-full mr-2 mb-1">
+                  <Text className="text-yellow-800 text-[10px] font-bold capitalize">{kw}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {loading && !activeSearchQuery ? (
           <View className="flex-1 justify-center items-center py-20">
             <ActivityIndicator size="large" color="#0a66c2" />
             <Text className="text-gray-500 mt-4">Loading projects...</Text>
           </View>
         ) : (
           <View className="flex-col">
-            {projects.map((project, idx) => {
+            {(activeSearchQuery ? searchResults : projects).map((project, idx) => {
               const hasLiked = (project.likedBy || []).includes(auth.currentUser?.uid);
+              const isSearchCard = !!activeSearchQuery;
               return (
-                <View key={project.id} className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6 overflow-hidden">
-                  <View className="p-4 flex-row justify-between items-center border-b border-gray-100">
-                    <View className="flex-row items-center gap-3">
-                      <Image source={{ uri: project.userImg }} className="w-10 h-10 rounded-full bg-gray-100" />
-                      <View>
-                        <View className="flex-row items-center">
-                          <Text className="font-semibold text-sm text-gray-900">{project.user}</Text>
-                          <View className="ml-2 bg-blue-100 px-1.5 py-0.5 rounded-full border border-blue-200">
-                            <Text className="text-blue-700 text-[9px] font-bold uppercase tracking-wider">Cambridge</Text>
-                          </View>
-                          {idx < 3 && (
-                            <View className="ml-2 px-2 py-0.5 bg-blue-50 rounded-full">
-                              <Text className="text-[10px] font-semibold text-[#0a66c2]">Featured</Text>
-                            </View>
-                          )}
+                <View key={project.id} className={`bg-white rounded-xl shadow-sm border border-gray-200 mb-6 overflow-hidden ${isSearchCard ? 'flex-row p-3' : ''}`}>
+                  {isSearchCard && (
+                    <View className="w-28 h-32 bg-gray-100 rounded-lg overflow-hidden mr-3">
+                      {project.image ? (
+                        <Image source={{ uri: project.image }} className="w-full h-full" resizeMode="cover" />
+                      ) : (
+                        <View className="w-full h-full bg-blue-600 items-center justify-center">
+                          <Text className="text-white font-bold text-xs p-1 text-center">{project.title}</Text>
                         </View>
-                        <Text className="text-[10px] text-gray-400">Project Contributor</Text>
-                      </View>
-                    </View>
-                    <TouchableOpacity className="p-1.5 bg-blue-50 rounded-full">
-                      <UserPlus size={16} color="#0a66c2" />
-                    </TouchableOpacity>
-                  </View>
-
-                  {project.image ? (
-                    <Image source={{ uri: project.image }} className="w-full h-44 bg-gray-100" resizeMode="cover" />
-                  ) : (
-                    <View className="w-full h-44 bg-blue-600 items-center justify-center">
-                      <Text className="text-white font-bold text-lg">{project.title}</Text>
+                      )}
                     </View>
                   )}
 
-                  <View className="p-5">
-                    <Text className="font-bold text-base text-gray-900 mb-2" numberOfLines={1}>{project.title}</Text>
-                    <Text className="text-gray-600 text-sm mb-4" numberOfLines={2}>{project.desc}</Text>
+                  <View className={isSearchCard ? 'flex-1 justify-between' : ''}>
+                    {!isSearchCard && (
+                      <View className="p-4 flex-row justify-between items-center border-b border-gray-100">
+                        <View className="flex-row items-center gap-3">
+                          <Image source={{ uri: project.userImg }} className="w-10 h-10 rounded-full bg-gray-100" />
+                          <View>
+                            <View className="flex-row items-center">
+                              <Text className="font-semibold text-sm text-gray-900">{project.user}</Text>
+                              <View className="ml-2 bg-blue-100 px-1.5 py-0.5 rounded-full border border-blue-200">
+                                <Text className="text-blue-700 text-[9px] font-bold uppercase tracking-wider">Cambridge</Text>
+                              </View>
+                              {idx < 3 && (
+                                <View className="ml-2 px-2 py-0.5 bg-blue-50 rounded-full">
+                                  <Text className="text-[10px] font-semibold text-[#0a66c2]">Featured</Text>
+                                </View>
+                              )}
+                            </View>
+                            <Text className="text-[10px] text-gray-400">Project Contributor</Text>
+                          </View>
+                        </View>
+                        <TouchableOpacity className="p-1.5 bg-blue-50 rounded-full">
+                          <UserPlus size={16} color="#0a66c2" />
+                        </TouchableOpacity>
+                      </View>
+                    )}
+
+                    {!isSearchCard && (
+                      project.image ? (
+                        <Image source={{ uri: project.image }} className="w-full h-44 bg-gray-100" resizeMode="cover" />
+                      ) : (
+                        <View className="w-full h-44 bg-blue-600 items-center justify-center">
+                          <Text className="text-white font-bold text-lg">{project.title}</Text>
+                        </View>
+                      )
+                    )}
+
+                    <View className={isSearchCard ? '' : 'p-5'}>
+                      <View className="flex-row justify-between items-start mb-1">
+                        <Text className="font-bold text-base text-gray-900 flex-1 mr-2" numberOfLines={isSearchCard ? 2 : 1}>
+                          {isSearchCard ? getHighlightedText(project.title, activeSearchQuery) : project.title}
+                        </Text>
+                        {isSearchCard && (
+                          <View className="bg-green-50 px-2 py-1 rounded-md border border-green-200">
+                            <Text className="text-green-700 text-[10px] font-bold">{project.matchScore}% Match</Text>
+                          </View>
+                        )}
+                      </View>
+                      
+                      {isSearchCard && (
+                        <View className="flex-row items-center mb-1.5">
+                          <Image source={{ uri: project.userImg }} className="w-4 h-4 rounded-full mr-1.5 bg-gray-200" />
+                          <Text className="text-xs text-gray-600 font-medium mr-1.5">{project.user}</Text>
+                          <View className="bg-blue-50 px-1.5 py-0.5 rounded text-[9px] text-[#0a66c2] font-semibold">
+                            <Text className="text-[9px] text-[#0a66c2] font-semibold">Featured</Text>
+                          </View>
+                        </View>
+                      )}
+
+                      <Text className="text-gray-600 text-xs mb-2 leading-relaxed" numberOfLines={2}>
+                        {isSearchCard ? getHighlightedText(project.desc, activeSearchQuery) : project.desc}
+                      </Text>
                     
-                    <View className="flex-row flex-wrap mb-4">
+                    <View className={`flex-row flex-wrap ${isSearchCard ? 'mb-2' : 'mb-4'}`}>
                       {project.tech && project.tech.map((t, i) => (
-                        <View key={i} className="px-2 py-1 bg-gray-100 rounded-md border border-gray-200 mr-2 mb-2">
-                          <Text className="text-gray-600 text-[11px] font-medium">{t}</Text>
+                        <View key={i} className={`px-2 py-1 rounded-md border mr-2 mb-1.5 ${isSearchCard ? 'bg-blue-50 border-blue-100' : 'bg-gray-100 border-gray-200'}`}>
+                          <Text className={`text-[10px] font-medium ${isSearchCard ? 'text-[#0a66c2]' : 'text-gray-600'}`}>{t}</Text>
                         </View>
                       ))}
                     </View>
 
-                    <View className="pt-4 border-t border-gray-100 flex-row justify-between items-center">
+                    <View className={`${isSearchCard ? 'pt-2 flex-row justify-between items-center' : 'pt-4 border-t border-gray-100 flex-row justify-between items-center'}`}>
                       <View className="flex-row gap-4">
                         <TouchableOpacity onPress={() => handleLike(project)} className="flex-row items-center">
-                          <Heart size={16} color={hasLiked ? "#ef4444" : "#6b7280"} fill={hasLiked ? "#ef4444" : "transparent"} />
-                          <Text className="ml-1 text-xs text-gray-600">{(project.likedBy || []).length}</Text>
+                          <Heart size={isSearchCard ? 14 : 16} color={hasLiked ? "#ef4444" : "#6b7280"} fill={hasLiked ? "#ef4444" : "transparent"} />
+                          <Text className={`ml-1 ${isSearchCard ? 'text-[10px]' : 'text-xs'} text-gray-600`}>{(project.likedBy || []).length}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity onPress={() => setCommentProject(project)} className="flex-row items-center">
-                          <MessageCircle size={16} color="#6b7280" />
-                          <Text className="ml-1 text-xs text-gray-600">{(project.comments || []).length}</Text>
+                          <MessageCircle size={isSearchCard ? 14 : 16} color="#6b7280" />
+                          <Text className={`ml-1 ${isSearchCard ? 'text-[10px]' : 'text-xs'} text-gray-600`}>{(project.comments || []).length}</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity onPress={() => handleShare(project)} className="flex-row items-center">
-                          <Share2 size={16} color="#6b7280" />
-                        </TouchableOpacity>
+                        {!isSearchCard && (
+                          <TouchableOpacity onPress={() => handleShare(project)} className="flex-row items-center">
+                            <Share2 size={16} color="#6b7280" />
+                          </TouchableOpacity>
+                        )}
+                        {isSearchCard && (
+                           <View className="flex-row items-center">
+                             <Star size={14} color="#6b7280" />
+                             <Text className="ml-1 text-[10px] text-gray-600">{Math.floor(Math.random() * 300) + 50}</Text>
+                           </View>
+                        )}
                       </View>
-                      <TouchableOpacity 
-                        onPress={() => handleDownload(project)}
-                        className="flex-row items-center bg-gray-100 px-3 py-1.5 rounded-lg border border-gray-200"
-                      >
-                        <Download size={14} color="#374151" />
-                        <Text className="ml-1 text-xs font-semibold text-gray-700">Code</Text>
-                        <Text className="ml-1 text-[10px] text-gray-400">({project.downloadsCount || 0})</Text>
-                      </TouchableOpacity>
+                      
+                      {isSearchCard ? (
+                        <Text className="text-[10px] text-gray-400">{(Math.floor(Math.random() * 10) + 1)} months ago</Text>
+                      ) : (
+                        <TouchableOpacity 
+                          onPress={() => handleDownload(project)}
+                          className="flex-row items-center bg-gray-100 px-3 py-1.5 rounded-lg border border-gray-200"
+                        >
+                          <Download size={14} color="#374151" />
+                          <Text className="ml-1 text-xs font-semibold text-gray-700">Code</Text>
+                          <Text className="ml-1 text-[10px] text-gray-400">({project.downloadsCount || 0})</Text>
+                        </TouchableOpacity>
+                      )}
                     </View>
                   </View>
                 </View>
+              </View>
               );
             })}
+          </View>
+        )}
+
+        {activeSearchQuery && searchResults.length > 0 && (
+          <View className="mt-2 mb-8">
+            <TouchableOpacity className="bg-blue-50 py-3 rounded-lg items-center border border-blue-100 flex-row justify-center mb-6">
+              <Text className="text-[#0a66c2] font-semibold text-sm mr-1">View All {searchResults.length} Results</Text>
+              <Text className="text-[#0a66c2] text-sm">→</Text>
+            </TouchableOpacity>
+
+            <Text className="text-gray-600 text-xs font-medium mb-3">Did you mean?</Text>
+            <View className="flex-row flex-wrap">
+              {['Smart Farming', 'Smart Agriculture System', 'Farming Management System'].map((suggestion, i) => (
+                <TouchableOpacity 
+                  key={i}
+                  onPress={() => executeSearch(suggestion)}
+                  className="bg-white px-3 py-1.5 rounded-full border border-gray-200 mr-2 mb-2 shadow-sm"
+                >
+                  <Text className="text-gray-700 text-xs">{suggestion}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
         )}
       </ScrollView>

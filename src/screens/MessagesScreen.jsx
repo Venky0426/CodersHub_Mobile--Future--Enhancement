@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, TouchableOpacity, Image, ScrollView, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Modal, BackHandler } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { Search, Phone, Video, MoreVertical, Paperclip, Smile, Send, Code, Hash, ChevronDown, X, Gift, ArrowLeft } from 'lucide-react-native';
+import { Search, Phone, Video, MoreVertical, Paperclip, Smile, Send, Code, Hash, ChevronDown, X, Gift, ArrowLeft, Bell } from 'lucide-react-native';
 import clsx from 'clsx';
 import { auth, db } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -9,17 +9,23 @@ import { collection, query, where, addDoc, onSnapshot, getDocs, serverTimestamp 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const COMMUNITIES_LIST = [
-  { id: 'mca-community', name: 'MCA Community 2020-2026' },
-  { id: 'web-dev-community', name: 'Web Dev Community' },
-  { id: 'ai-ml-community', name: 'AI & ML Community' },
-  { id: 'hackathon-team', name: 'Hackathon Team Finder' }
+  { id: 'mca-community', name: 'MCA Community 2025-27', members: '116 Members', online: '10 Online', badge: 5, img: 'https://api.dicebear.com/7.x/shapes/png?seed=mca' },
+  { id: 'web-dev-community', name: 'Web Dev Community', members: '176 Members', online: '30 Online', badge: 8, img: 'https://api.dicebear.com/7.x/shapes/png?seed=web' },
+  { id: 'ui-ux-community', name: 'UI/UX Community', members: '76 Members', online: '20 Online', badge: null, img: 'https://api.dicebear.com/7.x/shapes/png?seed=uiux' },
+  { id: 'ai-ml-community', name: 'AI &ML Community', members: '176 Members', online: '30 Online', badge: 10, img: 'https://api.dicebear.com/7.x/shapes/png?seed=aiml' },
+  { id: 'data-science', name: 'Data Science Hub', members: '89 Members', online: '15 Online', badge: 2, img: 'https://api.dicebear.com/7.x/shapes/png?seed=data' },
+  { id: 'competitive-prog', name: 'Competitive Programming', members: '245 Members', online: '50 Online', badge: 12, img: 'https://api.dicebear.com/7.x/shapes/png?seed=cp' },
+  { id: 'open-source', name: 'Open Source Contributors', members: '432 Members', online: '120 Online', badge: null, img: 'https://api.dicebear.com/7.x/shapes/png?seed=os' }
 ];
+
+// Direct messages are dynamically loaded from profiles now
 
 export default function MessagesScreen() {
   const [currentUser, setCurrentUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [activeCommunity, setActiveCommunity] = useState(COMMUNITIES_LIST[1]);
   const [viewMode, setViewMode] = useState('list'); // 'list' or 'chat'
+  const [showAllCommunities, setShowAllCommunities] = useState(false);
   
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
@@ -71,8 +77,13 @@ export default function MessagesScreen() {
     const q = collection(db, 'profiles');
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const list = [];
+      const seenUids = new Set();
       snapshot.forEach((doc) => {
-        list.push(doc.data());
+        const data = doc.data();
+        if (data.uid && !seenUids.has(data.uid)) {
+          seenUids.add(data.uid);
+          list.push({ docId: doc.id, ...data });
+        }
       });
       setProfiles(list);
     });
@@ -161,12 +172,22 @@ export default function MessagesScreen() {
   if (viewMode === 'list') {
     return (
       <SafeAreaView className="flex-1 bg-white" edges={['top']}>
-        <View className="px-4 pt-4 pb-2 mt-4">
-          <Text className="text-[28px] font-bold text-gray-900 mb-4 tracking-tight">Messages</Text>
-          <View className="flex-row items-center bg-gray-100 rounded-xl px-3 py-2.5 mb-2">
+        <View className="px-4 pt-4 pb-2 mt-4 flex-row justify-between items-center">
+          <Text className="text-[28px] font-bold text-gray-900 tracking-tight">Messages</Text>
+          <TouchableOpacity className="relative mr-2 mt-1">
+            <View className="w-6 h-6 items-center justify-center">
+              <Bell size={24} color="#111827" />
+            </View>
+            <View className="absolute -top-1 -right-1 bg-red-500 rounded-full w-4 h-4 items-center justify-center">
+              <Text className="text-white text-[10px] font-bold">3</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+        <View className="px-4 mb-4 mt-2">
+          <View className="flex-row items-center bg-gray-100 rounded-xl px-3 py-2.5">
             <Search size={20} color="#9ca3af" />
             <TextInput 
-              placeholder="Search messages..." 
+              placeholder="Search Messages" 
               placeholderTextColor="#9ca3af"
               className="flex-1 ml-2 text-[15px] text-gray-900" 
             />
@@ -174,75 +195,92 @@ export default function MessagesScreen() {
         </View>
         
         <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
-          {COMMUNITIES_LIST.map((community, index) => {
-            const isSelected = activeCommunity.id === community.id;
+          <Text className="text-[12px] text-gray-600 mb-4 pl-1">COMMUNITIES</Text>
+          {COMMUNITIES_LIST.slice(0, showAllCommunities ? undefined : 4).map((community, index) => {
             return (
               <TouchableOpacity 
                 key={community.id}
-                className={clsx(
-                  "flex-row items-center py-3 px-3 mb-2 rounded-2xl",
-                  isSelected ? "bg-blue-50" : ""
-                )}
+                className="flex-row items-center py-2 px-1 mb-3"
                 onPress={() => {
                   setActiveCommunity(community);
                   setViewMode('chat');
                 }}
               >
-                <View className={clsx(
-                  "w-[46px] h-[46px] rounded-2xl items-center justify-center mr-3",
-                  isSelected ? "bg-blue-100" : "bg-gray-100"
-                )}>
-                   <Hash size={24} color={isSelected ? "#0a66c2" : "#6b7280"} />
-                </View>
-                <View className="flex-1">
-                  <Text className={clsx(
-                    "text-[16px] font-medium mb-0.5",
-                    isSelected ? "text-[#0a66c2]" : "text-gray-800"
-                  )}>
+                <Image 
+                  source={{ uri: community.img }} 
+                  className="w-[46px] h-[46px] rounded-xl bg-gray-100 mr-4"
+                  resizeMode="cover"
+                />
+                <View className="flex-1 justify-center">
+                  <Text className="text-[16px] font-semibold text-gray-900 mb-0.5">
                     {community.name}
                   </Text>
-                  <Text className="text-[13px] text-gray-400">
-                    {index === 0 || index === 3 ? '110 members • 2 online' : index === 1 ? '69 members • 1 online' : '59 members • 1 online'}
+                  <Text className="text-[13px] text-gray-500">
+                    {community.members} • {community.online}
                   </Text>
                 </View>
-                {isSelected && (
-                  <View className="w-2.5 h-2.5 rounded-full bg-[#0a66c2] mr-1" />
+                {community.badge && (
+                  <View className="w-6 h-6 rounded-full bg-[#0a66c2] items-center justify-center">
+                    <Text className="text-white text-xs font-bold">{community.badge}</Text>
+                  </View>
                 )}
               </TouchableOpacity>
             );
           })}
           
-          <Text className="text-[11px] font-bold text-gray-500 tracking-widest mt-4 mb-4 pl-3">
+          <TouchableOpacity 
+            className="flex-row justify-center items-center py-2 mb-4"
+            onPress={() => setShowAllCommunities(!showAllCommunities)}
+          >
+            <Text className="text-[13px] font-medium text-gray-900 mr-1">{showAllCommunities ? "Less" : "More"}</Text>
+            <ChevronDown size={16} color="#111827" style={{ transform: [{ rotate: showAllCommunities ? '180deg' : '0deg' }] }} />
+          </TouchableOpacity>
+          
+          <View className="h-[1px] bg-gray-200 mb-4" />
+          
+          <Text className="text-[12px] text-gray-600 mb-4 pl-1">
             DIRECT MESSAGES
           </Text>
           
-          <TouchableOpacity className="flex-row items-center py-2 px-3 mb-1">
-            <View className="relative mr-3">
-              <Image source={{uri: 'https://api.dicebear.com/7.x/avataaars/png?seed=dev1'}} className="w-[46px] h-[46px] rounded-full bg-gray-100" />
-              <View className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-gray-400 rounded-full border-2 border-white" />
-            </View>
-            <View className="flex-1">
-              <View className="flex-row justify-between items-center mb-0.5">
-                <Text className="text-[15px] font-medium text-gray-800">Developer 1</Text>
-                <Text className="text-[12px] text-gray-400">2h</Text>
-              </View>
-              <Text className="text-[14px] text-gray-500" numberOfLines={1}>DM chats are coming soon...</Text>
-            </View>
-          </TouchableOpacity>
-          
-          <TouchableOpacity className="flex-row items-center py-2 px-3 mb-6">
-            <View className="relative mr-3">
-              <Image source={{uri: 'https://api.dicebear.com/7.x/avataaars/png?seed=dev2'}} className="w-[46px] h-[46px] rounded-full bg-gray-100" />
-              <View className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-white" />
-            </View>
-            <View className="flex-1">
-              <View className="flex-row justify-between items-center mb-0.5">
-                <Text className="text-[15px] font-medium text-gray-800">Developer 2</Text>
-                <Text className="text-[12px] text-gray-400">2h</Text>
-              </View>
-              <Text className="text-[14px] text-gray-500" numberOfLines={1}>DM chats are coming soon...</Text>
-            </View>
-          </TouchableOpacity>
+          {profiles.filter(p => p.uid !== currentUser?.uid).map((profile, idx) => {
+            const avatarUrl = profile.imageUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.fullName || 'User')}&background=random&color=fff&size=128`;
+            return (
+              <TouchableOpacity 
+                key={`${profile.uid}_${idx}`} 
+                className="flex-row items-center py-2 px-1 mb-3"
+                onPress={() => {
+                  if (!currentUser) return;
+                  const dmId = [currentUser.uid, profile.uid].sort().join('_');
+                  setActiveCommunity({
+                    id: `dm_${dmId}`,
+                    name: profile.fullName || 'Anonymous',
+                    members: 'Direct Message',
+                    online: isUserOnline(profile) ? 'Online' : 'Offline',
+                    img: avatarUrl,
+                    isDM: true
+                  });
+                  setViewMode('chat');
+                }}
+              >
+                <View className="relative mr-4">
+                  <Image source={{uri: avatarUrl}} className="w-[48px] h-[48px] rounded-full bg-gray-100" />
+                  {isUserOnline(profile) && (
+                    <View className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-[#10b981] rounded-full border-2 border-white" />
+                  )}
+                </View>
+                <View className="flex-1 justify-center">
+                  <View className="flex-row justify-between items-center mb-0.5">
+                    <Text className="text-[16px] font-semibold text-gray-900">{profile.fullName || 'Anonymous'}</Text>
+                    <Text className="text-[12px] font-medium text-gray-500">
+                      {profile.lastActive ? new Date(profile.lastActive.toDate ? profile.lastActive.toDate() : profile.lastActive).toLocaleDateString() : 'New'}
+                    </Text>
+                  </View>
+                  <Text className="text-[14px] text-gray-500" numberOfLines={1}>Hey! Let's connect.</Text>
+                </View>
+              </TouchableOpacity>
+            )
+          })}
+          <View className="h-8" />
         </ScrollView>
       </SafeAreaView>
     );
