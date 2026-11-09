@@ -31,7 +31,7 @@ const initialProjects = Array.from({ length: 6 }).map((_, i) => ({
   downloadsCount: Math.floor(Math.random() * 15) + 3,
 }));
 
-const ProjectsScreen = () => {
+const ProjectsScreen = ({ navigation }) => {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -411,7 +411,8 @@ const ProjectsScreen = () => {
               <TouchableOpacity 
                 key={proj.id} 
                 className="w-36 mr-3 bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm"
-                onPress={() => handleDownload(proj)}
+                onPress={() => navigation.navigate('ProjectDetails', { project: proj })}
+                activeOpacity={0.9}
               >
                 <View className="relative">
                   <Image source={{ uri: proj.image || `https://picsum.photos/seed/${proj.id}/300/200` }} className="w-full h-24" resizeMode="cover" />
@@ -484,7 +485,12 @@ const ProjectsScreen = () => {
               const hasLiked = (project.likedBy || []).includes(auth.currentUser?.uid);
               const isSearchCard = !!activeSearchQuery;
               return (
-                <View key={project.id} className={`bg-white rounded-xl shadow-sm border border-gray-200 mb-6 overflow-hidden ${isSearchCard ? 'flex-row p-3' : ''}`}>
+                <TouchableOpacity 
+                  key={project.id} 
+                  className={`bg-white rounded-xl shadow-sm border border-gray-200 mb-6 overflow-hidden ${isSearchCard ? 'flex-row p-3' : ''}`}
+                  onPress={() => navigation.navigate('ProjectDetails', { project })}
+                  activeOpacity={0.9}
+                >
                   {isSearchCard && (
                     <View className="w-28 h-32 bg-gray-100 rounded-lg overflow-hidden mr-3">
                       {project.image ? (
@@ -605,7 +611,7 @@ const ProjectsScreen = () => {
                     </View>
                   </View>
                 </View>
-              </View>
+              </TouchableOpacity>
               );
             })}
           </View>

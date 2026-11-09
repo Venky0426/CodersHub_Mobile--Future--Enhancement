@@ -5,8 +5,23 @@ import { Search, Phone, Video, MoreVertical, Paperclip, Smile, Send, Code, Hash,
 import clsx from 'clsx';
 import { auth, db } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, query, where, addDoc, onSnapshot, getDocs, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, getDocs } from 'firebase/firestore';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { io } from 'socket.io-client';
+
+// Use the machine's local network IP address for physical devices
+// 10.0.2.2 for Android Emulator, localhost for iOS simulator, or specific IP for physical devices
+let SOCKET_URL = 'http://10.125.91.167:3001';
+
+const socket = io(SOCKET_URL, {
+  reconnectionAttempts: 5,
+  timeout: 10000,
+});
+
+socket.on('connect', () => console.log('Socket connected:', socket.id));
+socket.on('connect_error', (err) => console.log('Socket connect error:', err.message));
+socket.on('disconnect', () => console.log('Socket disconnected'));
+
 
 const COMMUNITIES_LIST = [
   { id: 'mca-community', name: 'MCA Community 2025-27', members: '116 Members', online: '10 Online', badge: 5, img: 'https://api.dicebear.com/7.x/shapes/png?seed=mca' },
@@ -32,6 +47,7 @@ export default function MessagesScreen() {
   const [codeSnippet, setCodeSnippet] = useState('');
   const [showCodeInput, setShowCodeInput] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [socketError, setSocketError] = useState(null);
   
   const [profiles, setProfiles] = useState([]);
   
@@ -92,25 +108,56 @@ export default function MessagesScreen() {
 
   useEffect(() => {
     setLoading(true);
-    const q = query(collection(db, 'messages'), where('communityId', '==', activeCommunity.id));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const loadedMsgs = [];
-      snapshot.forEach((doc) => {
-        loadedMsgs.push({ id: doc.id, ...doc.data() });
+    
+    // Join the community channel
+    if (socket.connected) {
+      socket.emit('join_community', activeCommunity.id);
+    } else {
+      socket.once('connect', () => {
+        socket.emit('join_community', activeCommunity.id);
       });
+    }
 
-      loadedMsgs.sort((a, b) => {
-        const timeA = a.timestamp?.seconds ? a.timestamp.seconds * 1000 : (a.localTime || 0);
-        const timeB = b.timestamp?.seconds ? b.timestamp.seconds * 1000 : (b.localTime || 0);
-        return timeA - timeB;
-      });
-
-      setMessages(loadedMsgs);
+    // Listen for previous messages
+    const handlePrevMessages = (msgs) => {
+      const sortedMsgs = msgs.sort((a, b) => (a.localTime || 0) - (b.localTime || 0));
+      setMessages(sortedMsgs);
       setLoading(false);
-    });
+      setSocketError(null);
+    };
 
-    return () => unsubscribe();
+    // Listen for new messages
+    const handleNewMessage = (msg) => {
+      setMessages((prevMsgs) => {
+        if (prevMsgs.some(m => m.id === msg.id)) return prevMsgs;
+        return [...prevMsgs, msg].sort((a, b) => (a.localTime || 0) - (b.localTime || 0));
+      });
+    };
+    
+    const handleConnectError = (err) => {
+      setSocketError(`Connection failed: ${err.message}. Ensure backend is running.`);
+      setLoading(false); // Stop buffering so user sees error
+    };
+
+    socket.on('previous_messages', handlePrevMessages);
+    socket.on('receive_message', handleNewMessage);
+    socket.on('connect_error', handleConnectError);
+
+    // Timeout fallback if it takes too long
+    const timeout = setTimeout(() => {
+      if (loading && !socket.connected) {
+        setSocketError("Connection timed out. Connecting to " + SOCKET_URL);
+        setLoading(false);
+      }
+    }, 5000);
+
+    return () => {
+      clearTimeout(timeout);
+      socket.emit('leave_community', activeCommunity.id);
+      socket.off('previous_messages', handlePrevMessages);
+      socket.off('receive_message', handleNewMessage);
+      socket.off('connect_error', handleConnectError);
+    };
   }, [activeCommunity]);
 
   useFocusEffect(
@@ -144,8 +191,7 @@ export default function MessagesScreen() {
       senderAvatar,
       text: inputText.trim(),
       codeSnippet: codeSnippet.trim() || null,
-      timestamp: serverTimestamp(),
-      localTime: Date.now()
+      // No serverTimestamp() here since it's socket-based
     };
 
     setInputText('');
@@ -153,7 +199,7 @@ export default function MessagesScreen() {
     setShowCodeInput(false);
 
     try {
-      await addDoc(collection(db, 'messages'), newMessage);
+      socket.emit('send_message', newMessage);
     } catch (err) {
       console.error(err);
     }
@@ -320,6 +366,21 @@ export default function MessagesScreen() {
         {loading ? (
           <View className="flex-1 items-center justify-center py-20">
             <ActivityIndicator size="large" color="#0a66c2" />
+            <Text className="mt-4 text-gray-500">Connecting to real-time chat...</Text>
+          </View>
+        ) : socketError ? (
+          <View className="flex-1 items-center justify-center py-20">
+            <Text className="text-red-500 text-center px-4 font-medium mb-2">{socketError}</Text>
+            <TouchableOpacity 
+              className="bg-blue-100 px-4 py-2 rounded-full mt-2"
+              onPress={() => {
+                setLoading(true);
+                setSocketError(null);
+                socket.connect();
+              }}
+            >
+              <Text className="text-blue-700 font-bold">Retry Connection</Text>
+            </TouchableOpacity>
           </View>
         ) : messages.length > 0 ? (
           messages.map((msg) => {

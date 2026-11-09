@@ -18,6 +18,8 @@ import ConnectStudentsScreen from '../screens/ConnectStudentsScreen';
 import ProfileDashboardScreen from '../screens/ProfileDashboardScreen';
 import MessagesScreen from '../screens/MessagesScreen';
 import CreatePostScreen from '../screens/CreatePostScreen';
+import CommunityScreen from '../screens/CommunityScreen';
+import ProjectDetailsScreen from '../screens/ProjectDetailsScreen';
 import StartupHub from '../pages/StartupHub';
 
 const Stack = createNativeStackNavigator();
@@ -188,6 +190,16 @@ export default function AppNavigator() {
                 headerBackTitleVisible: false,
                 headerTintColor: '#0a66c2',
               }} 
+            />
+            <Stack.Screen 
+              name="Community" 
+              component={CommunityScreen} 
+              options={{ headerShown: false }} 
+            />
+            <Stack.Screen 
+              name="ProjectDetails" 
+              component={ProjectDetailsScreen} 
+              options={{ headerShown: false }} 
             />
           </>
         ) : (

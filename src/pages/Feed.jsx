@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Image, Video, Calendar, FileText, Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, UserPlus, X, Send, Smile, Check, Plus } from 'lucide-react';
 import { auth, db } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, query, where, getDocs, onSnapshot, orderBy, addDoc, updateDoc, doc } from 'firebase/firestore';
+import { collection, query, where, getDocs, onSnapshot, orderBy, addDoc, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import * as ImagePicker from 'expo-image-picker';
 import EventsSlideshow from '../components/EventsSlideshow';
 
@@ -236,6 +236,24 @@ const Feed = () => {
     }
   };
 
+  const handleDeletePost = async (post) => {
+    if (!post.fbId) return;
+    const user = auth.currentUser;
+    if (!user || user.uid !== post.uid) {
+      alert("You can only delete your own posts.");
+      return;
+    }
+
+    if (window.confirm("Are you sure you want to delete this post?")) {
+      try {
+        await deleteDoc(doc(db, 'posts', post.fbId));
+      } catch (err) {
+        console.error('Error deleting post', err);
+        alert("Failed to delete post");
+      }
+    }
+  };
+
   const handleShare = (post) => {
     if (navigator.share) {
       navigator.share({
@@ -347,7 +365,7 @@ const Feed = () => {
                     <p className="text-xs text-gray-400 mt-0.5">{post.time}</p>
                   </div>
                 </div>
-                <button className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100">
+                <button className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100" onClick={() => handleDeletePost(post)}>
                   <MoreHorizontal className="w-5 h-5" />
                 </button>
               </div>

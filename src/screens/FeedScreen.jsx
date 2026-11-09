@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { 
   View, Text, Image, TouchableOpacity, TextInput, ScrollView, Modal, 
-  KeyboardAvoidingView, Platform, Alert, Dimensions, Share 
+  KeyboardAvoidingView, Platform, Alert, Dimensions, Share, RefreshControl 
 } from 'react-native';
 import { Heart, MessageCircle, Share2, MoreHorizontal, UserPlus, X, Send, Plus, Image as ImageIcon, Gift, Rocket, GraduationCap, Trophy, Briefcase } from 'lucide-react-native';
 import { auth, db } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, query, where, getDocs, onSnapshot, orderBy, addDoc, updateDoc, doc } from 'firebase/firestore';
+import { collection, query, where, getDocs, onSnapshot, orderBy, addDoc, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import * as ImagePicker from 'expo-image-picker';
 import EventsSlideshowNative from '../components/EventsSlideshowNative';
 
@@ -35,6 +35,16 @@ const FeedScreen = ({ navigation }) => {
   // Track open comment sections
   const [openComments, setOpenComments] = useState({});
   const [commentInputs, setCommentInputs] = useState({});
+  
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = React.useCallback(() => {
+    setRefreshing(true);
+    // Since Firebase onSnapshot is already real-time, this provides a visual refresh feedback
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 1500);
+  }, []);
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
@@ -250,6 +260,35 @@ const FeedScreen = ({ navigation }) => {
     }
   };
 
+  const handleDeletePost = (post) => {
+    if (!post.fbId) return;
+    const user = auth.currentUser;
+    if (!user || user.uid !== post.uid) {
+      Alert.alert("Unauthorized", "You can only delete your own posts.");
+      return;
+    }
+
+    Alert.alert(
+      "Delete Post",
+      "Are you sure you want to delete this post?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Delete", 
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteDoc(doc(db, 'posts', post.fbId));
+            } catch (err) {
+              console.error(err);
+              Alert.alert("Error", "Failed to delete post");
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const handleShare = async (post) => {
     try {
       await Share.share({
@@ -267,7 +306,13 @@ const FeedScreen = ({ navigation }) => {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       className="flex-1 bg-gray-100"
     >
-      <ScrollView className="flex-1" keyboardShouldPersistTaps="handled">
+      <ScrollView 
+        className="flex-1" 
+        keyboardShouldPersistTaps="handled"
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0a66c2']} />
+        }
+      >
 
         {/* Quick Links Header */}
         <View className="bg-white py-4 border-b border-gray-100 mb-2">
@@ -320,7 +365,7 @@ const FeedScreen = ({ navigation }) => {
                   <Text className="text-xs text-gray-400 mt-0.5">{post.time}</Text>
                 </View>
               </View>
-              <TouchableOpacity>
+              <TouchableOpacity onPress={() => handleDeletePost(post)}>
                 <MoreHorizontal size={20} color="#9ca3af" />
               </TouchableOpacity>
             </View>
@@ -391,7 +436,10 @@ const FeedScreen = ({ navigation }) => {
                     <Image source={{ uri: comm.img }} className="w-12 h-12 rounded-lg bg-gray-100 mb-2" />
                     <Text className="text-gray-900 font-bold text-[13px] text-center mb-0.5" numberOfLines={1}>{comm.name}</Text>
                     <Text className="text-gray-500 text-[11px] text-center mb-3">{comm.members}</Text>
-                    <TouchableOpacity className="bg-[#0a66c2] px-6 py-1.5 rounded-full w-full items-center">
+                    <TouchableOpacity 
+                      className="bg-[#0a66c2] px-6 py-1.5 rounded-full w-full items-center"
+                      onPress={() => navigation.navigate('Community', { communityName: comm.name })}
+                    >
                       <Text className="text-white text-[11px] font-bold">Join</Text>
                     </TouchableOpacity>
                   </View>
